@@ -9,7 +9,7 @@ The **OnChain Arbitrage Bot** is a Python-based trading tool that identifies and
 - **Cross-Platform Arbitrage:** Integrates Kwenta and DYDX to fetch funding rates and market data.
 - **Advanced Arbitrage Logic:** Incorporates leverage, skew, liquidity, and transaction costs for profit optimization.
 - **Error Handling:** Includes comprehensive error management for robust execution.
-- **Blockchain Integration:** Supports seamless interaction with Kwenta’s blockchain via middleware injection.
+- **Blockchain Integration:** Supports seamless interaction with Optimisms blockchain via middleware injection.
 - **Scalable Design:** Capable of monitoring multiple markets and adapting to changing market conditions.
 
 ---
