@@ -1,0 +1,167 @@
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.ensemble import GradientBoostingRegressor
+from kwenta import Kwenta
+from dydx3 import Client
+from web3.middleware import ExtraDataToPOAMiddleware
+
+class OnChainArbitrageBot:
+    def __init__(self, initial_capital, leverage, provider_rpc, wallet_address, private_key, gql_endpoint_perps, dydx_api_url, dydx_api_key, dydx_api_secret, dydx_passphrase):
+        self.initial_capital = initial_capital
+        self.leverage = leverage
+        self.scaler = MinMaxScaler()
+
+        # Initialize Kwenta SDK
+        self.kwenta = Kwenta(
+            network_id=11155111,  # OP Sepolia Testnet
+            provider_rpc=provider_rpc,
+            wallet_address=wallet_address,
+            private_key=private_key,
+            gql_endpoint_perps=gql_endpoint_perps,
+        )
+
+        # Initialize DYDX client
+        self.dydx_client = Client(
+            host=dydx_api_url,
+            api_key_credentials={
+                'key': dydx_api_key,
+                'secret': dydx_api_secret,
+                'passphrase': dydx_passphrase
+            }
+        )
+
+        # Inject the middleware
+        self.kwenta.w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
+
+        # Initialize IndexerClient for DYDX testnet
+        self.indexer_client = IndexerClient(
+            config=Network.testnet().indexer_config,
+        )
+
+    def fetch_stark_private_key(self):
+        """
+        Fetch the Stark private key from DYDX.
+        """
+        try:
+            account_response = self.dydx_client.private.get_account()
+            stark_private_key = account_response['account']['stark_key']
+            print(f"Stark Private Key: {stark_private_key}")
+            return stark_private_key
+        except Exception as e:
+            print(f"Error fetching Stark private key: {e}")
+            return None
+
+    def fetch_kwenta_funding_rate(self, market_key):
+        """
+        Fetch the funding rate for a specific market from Kwenta.
+        """
+        try:
+            market_info = self.kwenta.fetch_market_info(market_key)
+            funding_rate = market_info.get("currentFundingRate", None)
+            print(f"Funding Rate for {market_key} on Kwenta: {funding_rate}")
+            return funding_rate
+        except Exception as e:
+            print(f"Error fetching funding rate for {market_key} on Kwenta: {e}")
+            return None
+
+    def fetch_dydx_funding_rate(self, market):
+        """
+        Fetch the funding rate for a specific market from DYDX.
+        """
+        try:
+            response = self.dydx_client.public.get_markets()
+            funding_rate = response['markets'][market]['nextFundingRate']
+            print(f"Funding Rate for {market} on DYDX: {funding_rate}")
+            return funding_rate
+        except Exception as e:
+            print(f"Error fetching funding rate for {market} on DYDX: {e}")
+            return None
+
+    def fetch_kwenta_market_data(self, market_key):
+        """
+        Fetch detailed market information from Kwenta for analysis.
+        """
+        try:
+            market_data = self.kwenta.fetch_market_info(market_key)
+            print(f"Market Data for {market_key} on Kwenta: {market_data}")
+            return market_data
+        except Exception as e:
+            print(f"Error fetching market data for {market_key} on Kwenta: {e}")
+            return None
+
+    def fetch_dydx_market_data(self, market):
+        """
+        Fetch detailed market information from DYDX for analysis.
+        """
+        try:
+            response = self.dydx_client.public.get_markets()
+            market_data = response['markets'][market]
+            print(f"Market Data for {market} on DYDX: {market_data}")
+            return market_data
+        except Exception as e:
+            print(f"Error fetching market data for {market} on DYDX: {e}")
+            return None
+
+    def advanced_arbitrage(self, funding_rate1, funding_rate2, skew1, skew2, liquidity1, liquidity2, costs):
+        """
+        Calculate profit considering market skew and liquidity.
+        """
+        F1, F2 = funding_rate1, funding_rate2
+        S1, S2 = skew1, skew2
+        S1i, S2i = liquidity1, liquidity2
+        C1, C2, E1, E2 = costs
+
+        profit = ((F2 - F1) * (S2 - S1) * self.leverage * (S2i - S1i)) / (C1 + C2 + E1 + E2)
+        return profit
+
+# Example Usage
+provider_rpc = "yo"
+wallet_address = "my"
+private_key = "dog"
+gql_endpoint_perps = "what"
+dydx_api_url = "be"
+dydx_api_key = "up"
+dydx_api_secret = "wit"
+dydx_passphrase = "cha"
+
+bot = OnChainArbitrageBot(
+    initial_capital=10000,  # $10,000
+    leverage=10,
+    provider_rpc=provider_rpc,
+    wallet_address=wallet_address,
+    private_key=private_key,
+    gql_endpoint_perps=gql_endpoint_perps,
+    dydx_api_url=dydx_api_url,
+    dydx_api_key=dydx_api_key,
+    dydx_api_secret=dydx_api_secret,
+    dydx_passphrase=dydx_passphrase,
+)
+
+# Fetch Stark Private Key
+stark_private_key = bot.fetch_stark_private_key()
+
+# Fetch Funding Rates from Kwenta and DYDX
+kwenta_market = "sETH"  # Example market key
+funding_rate_kwenta = bot.fetch_kwenta_funding_rate(kwenta_market)
+dydx_market = "ETH-USD"  # Example market
+funding_rate_dydx = bot.fetch_dydx_funding_rate(dydx_market)
+
+# Fetch Market Data from Kwenta and DYDX
+market_data_kwenta = bot.fetch_kwenta_market_data(kwenta_market)
+market_data_dydx = bot.fetch_dydx_market_data(dydx_market)
+
+# Example Arbitrage Calculation
+funding_rate1 = funding_rate_kwenta or 0.01  # Replace with actual funding rate from Kwenta
+funding_rate2 = funding_rate_dydx or 0.02  # Replace with actual funding rate from DYDX
+skew1 = 0.5
+skew2 = 0.8
+liquidity1 = 1000000
+liquidity2 = 800000
+costs = [20, 25, 5, 10]
+
+net_profit_advanced = bot.advanced_arbitrage(
+    funding_rate1, funding_rate2, skew1, skew2, liquidity1, liquidity2, costs
+)
+print(f"Net Profit (Advanced Arbitrage): ${net_profit_advanced:.2f}")
